@@ -7,15 +7,41 @@ import (
 	"time"
 )
 
-func RtcDataRecv(ch chan<- int32, rtc RTC_8564.Device) {
+func main() {
 
+	/* アラーム出力確認 */
+	init := machine.D2
+	init.Configure(machine.PinConfig{Mode: machine.PinInputPullup})
+
+	/* 表示用LEDの設定 */
+	led := machine.LED
+	led.Configure(machine.PinConfig{Mode: machine.PinOutput})
+
+	/* RTCの設定 */
+	machine.I2C0.Configure(machine.I2CConfig{})
+	rtc := RTC_8564.New(machine.I2C0)
+
+	/* UARTの設定 */
 	uart := machine.UART1
 	uart.Configure(machine.UARTConfig{BaudRate: 9600})
 
+	/*RTCの初期設定 */
+	rtc.RtcInit(21, 9, 5, 12, 55, 0)
+
+	/* アラームの設定 */
+	rtc.SetAlarm(12, 56)
+
+	/* アラームスタート*/
+	rtc.StartAlarm()
+
 	for {
-		ch <- 1
+		/* RTCからデータを取得 */
 		rtcData, dt := rtc.GetRtc()
+
+		/* UARTでRTC-8546のデータを出力 */
 		uart.Write(dt)
+
+		/* 標準出力でRTCのデータを出力 */
 		s := fmt.Sprintf("%d %d %d %d %d %d %d", rtcData.Year,
 			rtcData.Month,
 			rtcData.Day,
@@ -25,61 +51,22 @@ func RtcDataRecv(ch chan<- int32, rtc RTC_8564.Device) {
 			rtcData.Sec)
 
 		fmt.Println(s)
-		time.Sleep(time.Millisecond * 1000)
-	}
-}
 
-//func blinked(ch chan<- int32) {
-//	led := machine.LED
-//	led.Configure(machine.PinConfig{Mode: machine.PinOutput})
-//	for {
-//		ch <- 1
-//		led.High()
-//		time.Sleep(time.Millisecond * 500)
-//		led.Low()
-//		time.Sleep(time.Millisecond * 500)
-//	}
-//}
-func main() {
-
-	init := machine.D2
-	init.Configure(machine.PinConfig{Mode: machine.PinInputPullup})
-
-	led := machine.LED
-	led.Configure(machine.PinConfig{Mode: machine.PinOutput})
-
-	machine.I2C0.Configure(machine.I2CConfig{})
-	rtc := RTC_8564.New(machine.I2C0)
-
-	rtc.RtcInit(21, 9, 5, 12, 55, 0)
-	rtc.SetAlarm(12, 56)
-	rtc.StartAlarm()
-
-	rtcCh2 := make(chan int32, 1)
-	go RtcDataRecv(rtcCh2, rtc)
-
-	//chan2 := make(chan int32, 1)
-	//go blinked(chan2)
-
-	for {
-		select {
-		/* RTC処理 */
-		case <-rtcCh2:
-			break
-
-			///* LED点灯処理 */
-			//case <-chan2:
-			//	break
-		}
-
+		/* アラームの確認 */
 		if init.Get() == false {
+			/* アラームON */
 			led.Low()
 			time.Sleep(time.Millisecond * 100)
+
+			/* アラームリセット */
 			rtc.ResetAlarm()
 
 		} else {
+			/* アラームOFF */
 			led.High()
 		}
+
+		time.Sleep(time.Millisecond * 1000)
 
 	}
 }
