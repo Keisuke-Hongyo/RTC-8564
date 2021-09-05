@@ -7,12 +7,10 @@ import (
 	"time"
 )
 
-func RtcDataRecv(ch chan<- int32 ,rtc RTC_8564.Device) {
+func RtcDataRecv(ch chan<- int32, rtc RTC_8564.Device) {
 
 	uart := machine.UART1
 	uart.Configure(machine.UARTConfig{BaudRate: 9600})
-
-	rtc.RtcInit()
 
 	for {
 		ch <- 1
@@ -31,27 +29,37 @@ func RtcDataRecv(ch chan<- int32 ,rtc RTC_8564.Device) {
 	}
 }
 
-func blinked(ch chan<- int32) {
+//func blinked(ch chan<- int32) {
+//	led := machine.LED
+//	led.Configure(machine.PinConfig{Mode: machine.PinOutput})
+//	for {
+//		ch <- 1
+//		led.High()
+//		time.Sleep(time.Millisecond * 500)
+//		led.Low()
+//		time.Sleep(time.Millisecond * 500)
+//	}
+//}
+func main() {
+
+	init := machine.D2
+	init.Configure(machine.PinConfig{Mode: machine.PinInputPullup})
+
 	led := machine.LED
 	led.Configure(machine.PinConfig{Mode: machine.PinOutput})
-	for {
-		ch <- 1
-		led.High()
-		time.Sleep(time.Millisecond * 500)
-		led.Low()
-		time.Sleep(time.Millisecond * 500)
-	}
-}
-func main() {
 
 	machine.I2C0.Configure(machine.I2CConfig{})
 	rtc := RTC_8564.New(machine.I2C0)
 
-	rtcCh2 := make(chan int32, 1)
-	go RtcDataRecv(rtcCh2,rtc)
+	rtc.RtcInit(21, 9, 5, 12, 55, 0)
+	rtc.SetAlarm(12, 56)
+	rtc.StartAlarm()
 
-	chan2 := make(chan int32, 1)
-	go blinked(chan2)
+	rtcCh2 := make(chan int32, 1)
+	go RtcDataRecv(rtcCh2, rtc)
+
+	//chan2 := make(chan int32, 1)
+	//go blinked(chan2)
 
 	for {
 		select {
@@ -59,9 +67,18 @@ func main() {
 		case <-rtcCh2:
 			break
 
-		/* LED点灯処理 */
-		case <-chan2:
-			break
+			///* LED点灯処理 */
+			//case <-chan2:
+			//	break
+		}
+
+		if init.Get() == false {
+			led.Low()
+			time.Sleep(time.Millisecond * 100)
+			rtc.ResetAlarm()
+
+		} else {
+			led.High()
 		}
 
 	}
